@@ -10,14 +10,14 @@ These are the parts we can choose to write ourselves, ranked from easiest to har
 
 | Rank | Part | Language | Owner | Why it's this hard |
 |---|---|---|---|---|
-| 1 (easiest) | PIT timer interrupt and RGB LED status | C | Open | A few SDK calls, much like the labs |
-| 2 | Main loop: hot-spot decision | C | Open | One subtraction and one comparison, but it needs the other parts done first |
-| 3 | C reference version of the network (for checking and speed comparison) | C | Open | Three nested loops, written straight from `model.h` |
-| 4 | PC sender script (weights + Pearson samples) | Python | Open | pyserial plus building packet bytes |
+| 1 (easiest) | Main loop: hot-spot decision | C | Open | One subtraction and one comparison, but it needs the other parts done first |
+| 2 | C reference version of the network (for checking and speed comparison) | C | Open | Three nested loops, written straight from `model.h` |
+| 3 | PC sender script (weights + Pearson samples) | Python | Open | pyserial plus building packet bytes |
+| 4 | Serial receive: RX interrupt handler, ring buffer, packet parser, XOR checksum | C | Open | A state machine, but easy to debug with `printf` in C |
 | 5 | DHT20 sensor driver over I2C | C | Open | Short code, but wiring and pull-up problems are hard to spot |
-| 6 | Neural network inference: input scaling, 3 dense layers, ReLU, output scaling | Assembly | Brian | The biggest block (about 100 lines), but it's pure math, and `test_vectors.csv` shows which layer is wrong |
-| 7 | UART register setup (clock gate, pin mux, baud rate, NVIC) | Assembly | Open (stretch) | One wrong register bit and nothing works at all, with no error. Default is C via the SDK. |
-| 8 (hardest) | Serial receive: RX interrupt handler, ring buffer, packet parser, XOR checksum | Assembly | Shub | A state machine plus interrupt timing; bugs only show up with real traffic |
+| 6 | PIT timer interrupt and RGB LED status: clock gates, pin mux, PIT registers, NVIC, interrupt handler, `led_set(color)` | Assembly | Shub (to be confirmed) | About 70 lines of register writes, close to the labs; if a register is wrong, nothing happens and there's no error |
+| 7 | Neural network inference: input scaling, 3 dense layers, ReLU, output scaling | Assembly | Brian | The biggest block (about 100 lines), but it's pure math, and `test_vectors.csv` shows which layer is wrong |
+| 8 (hardest) | UART register setup (clock gate, pin mux, baud rate, NVIC) | Assembly | Open (stretch) | One wrong register bit and nothing works at all, with no error. Default is C via the SDK. |
 
 The assignment asks for 100 lines of assembly for the project as a whole, not per person. It can be split across functions as long as it forms one functional block.
 
@@ -50,13 +50,13 @@ UN Sustainable Development Goals: **SDG 11** (sustainable cities and communities
 
 ```mermaid
 flowchart LR
-    PC["Laptop<br/>Pearson weather<br/>(hourly)"] -- "UART packets" --> RX["Serial RX<br/>(assembly, Shub)"]
+    PC["Laptop<br/>Pearson weather<br/>(hourly)"] -- "UART packets" --> RX["Serial RX<br/>(C)"]
     RX --> BUF["Shared RAM<br/>weights + sample"]
     BUF --> NN["Neural network<br/>(assembly, Brian)"]
-    PIT["PIT timer<br/>interrupt"] --> MAIN
+    PIT["PIT timer<br/>interrupt<br/>(assembly, Shub)"] --> MAIN
     DHT["DHT20 sensor<br/>(I2C)"] --> MAIN["Main loop<br/>hot-spot decision"]
     NN -- "expected gap" --> MAIN
-    MAIN --> LED["RGB LED"]
+    MAIN --> LED["RGB LED<br/>(assembly, Shub)"]
     MAIN -- "result packet" --> PC
 ```
 
@@ -205,12 +205,13 @@ A packet with a bad checksum or the wrong length is dropped. The parser then loo
 
 ## Shared memory contract
 
-The two assembly blocks never call each other. They only share these buffers, so each of us can build and test our half alone.
+The serial code and the network never call each other. They only share these buffers, so each part can be built and tested alone.
 
 ```c
 extern int16_t nn_weights[5 + 273];   // filled from a 'W' packet; header first
 extern volatile int16_t pearson[5];   // filled from an 'S' packet
-extern volatile uint8_t sample_ready; // parser sets 1; main loop clears it
+extern volatile uint8_t sample_ready; // PIT interrupt sets 1; main loop clears it
+extern volatile uint8_t pearson_ready; // parser sets 1 when a new 'S' packet arrives
 ```
 
 The network is called from C following the ARM calling convention (AAPCS): arguments in r0–r3, result in r0, r4–r11 saved by the function.
@@ -223,7 +224,7 @@ int16_t nn_predict(const int16_t *weights, const int16_t *pearson, int16_t *scra
 
 | Requirement | How we meet it |
 |---|---|
-| At least 100 lines of GNU assembly as one functional block | Neural network inference (plus the serial parser as a second block) |
+| At least 100 lines of GNU assembly as one functional block | Neural network inference (plus the PIT timer and LED as a second assembly block) |
 | At least one interrupt | PIT timer and UART RX |
 | At least 3 peripherals (serial counts only if it sends and receives) | UART (both ways), I2C, GPIO, PIT |
 | Tied to a UN SDG | SDG 11, 13 and 3 |
