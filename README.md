@@ -6,18 +6,20 @@ A FRDM-K64F board with a temperature and humidity sensor measures one city block
 
 ## Who writes what
 
-These are the parts we can choose to write ourselves. Each of us owns one assembly block, because the professor asks about the code we wrote.
+These are the parts we can choose to write ourselves, ranked from easiest to hardest. The professor asks about the code we wrote, so each of us owns one assembly block.
 
-| Part | Language | Owner | Notes |
-|---|---|---|---|
-| Neural network inference: input scaling, 3 dense layers, ReLU, output scaling | Assembly | Brian | The required 100+ line functional block. Must match `test_vectors.csv` exactly. |
-| Serial receive: RX interrupt handler, ring buffer, packet parser, XOR checksum | Assembly | Shub | Second assembly block. Fills the shared buffers below. |
-| UART register setup (clock gate, pin mux, baud rate, NVIC) | Assembly | Open (stretch) | Default is C via the SDK. |
-| DHT20 sensor driver over I2C | C | Open | |
-| PIT timer interrupt and RGB LED status | C | Open | |
-| C reference version of the network (for checking and speed comparison) | C | Open | |
-| Main loop: hot-spot decision | C | Open | |
-| PC sender script (weights + Pearson samples) | Python | Open | |
+| Rank | Part | Language | Owner | Why it's this hard |
+|---|---|---|---|---|
+| 1 (easiest) | PIT timer interrupt and RGB LED status | C | Open | A few SDK calls, much like the labs |
+| 2 | Main loop: hot-spot decision | C | Open | One subtraction and one comparison, but it needs the other parts done first |
+| 3 | C reference version of the network (for checking and speed comparison) | C | Open | Three nested loops, written straight from `model.h` |
+| 4 | PC sender script (weights + Pearson samples) | Python | Open | pyserial plus building packet bytes |
+| 5 | DHT20 sensor driver over I2C | C | Open | Short code, but wiring and pull-up problems are hard to spot |
+| 6 | Neural network inference: input scaling, 3 dense layers, ReLU, output scaling | Assembly | Brian | The biggest block (about 100 lines), but it's pure math, and `test_vectors.csv` shows which layer is wrong |
+| 7 | UART register setup (clock gate, pin mux, baud rate, NVIC) | Assembly | Open (stretch) | One wrong register bit and nothing works at all, with no error. Default is C via the SDK. |
+| 8 (hardest) | Serial receive: RX interrupt handler, ring buffer, packet parser, XOR checksum | Assembly | Shub | A state machine plus interrupt timing; bugs only show up with real traffic |
+
+The assignment asks for 100 lines of assembly for the project as a whole, not per person. It can be split across functions as long as it forms one functional block.
 
 > **Notice:** every part not claimed by Brian or Shub in this table (including any "Open" row nobody takes) will be written with AI assistance (Claude), as the course allows. The model training and export scripts are AI-written too. Each AI-assisted file says so in its header comment, and the report lists them in the GenAI declaration.
 
