@@ -1,0 +1,4 @@
+# Raw ECCC hourly CSVs (38 MB). Re-download with training/download_eccc.sh
+training/eccc/
+__pycache__/
+ISSUE_DRAFT_*.md

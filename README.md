@@ -10,14 +10,15 @@ These are the parts we can choose to write ourselves, ranked from easiest to har
 
 | Rank | Part | Language | Owner | Why it's this hard |
 |---|---|---|---|---|
-| 1 (easiest) | Main loop: hot-spot decision | C | Open | One subtraction and one comparison, but it needs the other parts done first |
-| 2 | C reference version of the network (for checking and speed comparison) | C | Open | Three nested loops, written straight from `model.h` |
-| 3 | PC sender script (weights + Pearson samples) | Python | Open | pyserial plus building packet bytes |
-| 4 | Serial receive: RX interrupt handler, ring buffer, packet parser, XOR checksum | C | Open | A state machine, but easy to debug with `printf` in C |
-| 5 | DHT20 sensor driver over I2C | C | Open | Short code, but wiring and pull-up problems are hard to spot |
-| 6 | PIT timer interrupt and RGB LED status: clock gates, pin mux, PIT registers, NVIC, interrupt handler, `led_set(color)` | Assembly | Shub (to be confirmed) | About 70 lines of register writes, close to the labs; if a register is wrong, nothing happens and there's no error |
+| 1 (easiest) | Main loop: hot-spot decision | C | AI (Claude) | One subtraction and one comparison, but it needs the other parts done first |
+| 2 | C reference version of the network (for checking and speed comparison) | C | AI (Claude) | Three nested loops, written straight from `model.h` |
+| 3 | PC sender script (weights + Pearson samples) | Python | AI (Claude) | pyserial plus building packet bytes |
+| 4 | Serial receive: RX interrupt handler, ring buffer, packet parser, XOR checksum | C | AI (Claude) | A state machine, but easy to debug with `printf` in C |
+| 5 | DHT20 sensor driver over I2C | C | AI (Claude) | Short code, but wiring and pull-up problems are hard to spot |
+| 6a | PIT timer + interrupt handler that sets `sample_ready` (ConfigTools, same as Lab 6) | C | Shub | Lab 6 almost as is |
+| 6b | RGB LED driver: `led_init`, `led_set(color)` (clock gate, pin mux, direction, active low) | Assembly | Shub | Lab 7 extended to three colours and one argument; if a register is wrong, nothing happens and there's no error |
 | 7 | Neural network inference: input scaling, 3 dense layers, ReLU, output scaling | Assembly | Brian | The biggest block (about 100 lines), but it's pure math, and `test_vectors.csv` shows which layer is wrong |
-| 8 (hardest) | UART register setup (clock gate, pin mux, baud rate, NVIC) | Assembly | Open (stretch) | One wrong register bit and nothing works at all, with no error. Default is C via the SDK. |
+| 8 (hardest) | UART register setup (clock gate, pin mux, baud rate, NVIC) | Assembly | Dropped: C via the SDK | One wrong register bit and nothing works at all, with no error. |
 
 The assignment asks for 100 lines of assembly for the project as a whole, not per person. It can be split across functions as long as it forms one functional block.
 
@@ -53,7 +54,7 @@ flowchart LR
     PC["Laptop<br/>Pearson weather<br/>(hourly)"] -- "UART packets" --> RX["Serial RX<br/>(C)"]
     RX --> BUF["Shared RAM<br/>weights + sample"]
     BUF --> NN["Neural network<br/>(assembly, Brian)"]
-    PIT["PIT timer<br/>interrupt<br/>(assembly, Shub)"] --> MAIN
+    PIT["PIT timer<br/>interrupt<br/>(C, Shub)"] --> MAIN
     DHT["DHT20 sensor<br/>(I2C)"] --> MAIN["Main loop<br/>hot-spot decision"]
     NN -- "expected gap" --> MAIN
     MAIN --> LED["RGB LED<br/>(assembly, Shub)"]
@@ -160,7 +161,7 @@ Sine and cosine together let the network know that 23:00 is next to 00:00, and D
 
 We also tried 7-8-1, 7-16-1, 7-8-8-1 and 7-32-16-1. All landed between 0.607 and 0.620 °C, so 7-16-8-1 is a middle size, big enough to be interesting in assembly and small enough to fit easily.
 
-**Exported files** (to be added under `model/`):
+**Exported files** (in `model/`, made by `training/train_export.py`):
 
 | File | Contents |
 |---|---|
@@ -224,7 +225,7 @@ int16_t nn_predict(const int16_t *weights, const int16_t *pearson, int16_t *scra
 
 | Requirement | How we meet it |
 |---|---|
-| At least 100 lines of GNU assembly as one functional block | Neural network inference (plus the PIT timer and LED as a second assembly block) |
+| At least 100 lines of GNU assembly as one functional block | Neural network inference (plus the RGB LED driver as a second assembly block) |
 | At least one interrupt | PIT timer and UART RX |
 | At least 3 peripherals (serial counts only if it sends and receives) | UART (both ways), I2C, GPIO, PIT |
 | Tied to a UN SDG | SDG 11, 13 and 3 |
@@ -263,7 +264,6 @@ docs/         Charts, diagrams and the report
 
 - Which day is our in-class presentation, Dec 8 or Dec 11?
 - Does the professor expect *each* partner to write assembly, or just the project as a whole?
-- Who takes the "Open" rows in the table at the top?
 - What sample period should the PIT use for the demo (for example every 2 seconds), and what threshold makes a good demo?
 
 ## References
